@@ -1,0 +1,29 @@
+body {
+  background-color: #eee;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", Times, serif;
+}
+
+.cards {
+  display: flex;
+  gap: 1em;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin: 5em;
+}
+
+.card {
+  border: 1px solid blue;
+  border-radius: 1em;
+  padding: 1em;
+  width: 15%;
+}
+
+.card-title {
+  margin: 0;
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+}
+
+.card--expanded {
+  background-color: lightblue;
+}
