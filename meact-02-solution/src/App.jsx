@@ -5,10 +5,10 @@ import "./App.css";
 function User({ user }) {
   return (
     <div>
-      <h3 style={{ backgroundColor: "hotpink" }}>
+      <h4 style={{ backgroundColor: "hotpink" }}>
         {user.lastName}; {user.firstName}
-      </h3>
-      <img src="avatar.jpg" alt="" width="200" className="profile" />
+      </h4>
+      <img src="avatar.jpg" alt="" width="100" className="profile" />
       <input disabled={false} value="Hello there" />
     </div>
   );
@@ -17,7 +17,7 @@ function User({ user }) {
 function Card({ title, children }) {
   return (
     <div className="card card--expanded">
-      <h2 className="card-title">{title}</h2>
+      <h3 className="card-title">{title}</h3>
       <div className="card-body">{children}</div>
     </div>
   );

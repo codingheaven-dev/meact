@@ -1,0 +1,21 @@
+{
+  "name": "meact",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "workspaces": [
+    "meact-01",
+    "meact-01-solution",
+    "meact-02",
+    "meact-02-solution",
+    "meact-03",
+    "meact-03-solution",
+    "meact-04",
+    "meact-04-solution"
+  ]
+}

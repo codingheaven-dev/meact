@@ -1,4 +1,4 @@
 import App from "./App";
-import { render } from "./Meact";
+import Meact from "./Meact";
 
-render(App, document.getElementById("root"));
+Meact.render(App(), document.getElementById("root"));

@@ -5,13 +5,13 @@ import "./App.css";
 function User({ user }) {
   return (
     <div>
-      <h3
+      <h4
         style={{ backgroundColor: "hotpink" }}
         onMouseMove={() => console.log("Mouse is moving!")}
       >
         {user.lastName}; {user.firstName}
-      </h3>
-      <img src="avatar.jpg" alt="" width="200" className="profile" />
+      </h4>
+      <img src="avatar.jpg" alt="" width="150" className="profile" />
       <input disabled={false} value="Hello there" />
     </div>
   );
@@ -20,9 +20,9 @@ function User({ user }) {
 function Card({ isExpanded, title, onClick, children }) {
   return (
     <div className={`card ${isExpanded ? "card--expanded" : ""}`}>
-      <h2 className="card-title" onClick={onClick}>
+      <h3 className="card-title" onClick={onClick}>
         {title}
-      </h2>
+      </h3>
       {isExpanded && <div className="card-body">{children}</div>}
     </div>
   );

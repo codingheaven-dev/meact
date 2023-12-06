@@ -1,5 +1,5 @@
 import App from "./App";
-import Meact, { render } from "./Meact";
+import Meact from "./Meact";
 
 /** @jsx Meact.createElement */
-render(<App />, document.getElementById("root"));
+Meact.render(<App />, document.getElementById("root"));

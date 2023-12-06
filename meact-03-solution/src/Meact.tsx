@@ -1,152 +1,244 @@
-type Properties = Record<string, unknown> | null;
+interface Properties extends Record<string, unknown> {
+  children: JSXFlatElement[];
+}
 type Component = (props?: Properties) => JSXFlatElement;
 type ElementType = Component | string;
-type JSXElement = ComponentElement | ComponentElement[] | string | null;
-type JSXFlatElement = ComponentElement | string | null;
-interface ComponentElement<T extends ElementType = ElementType> {
-  type: T;
+type JSXFlatElement = Fiber | null;
+interface Fiber<T extends ElementType = ElementType> {
+  type?: T;
   props: Properties;
-  children?: JSXElement | JSXElement[];
-}
-interface ParsedProperty {
-  key: string;
-  value: string;
-}
-interface EventHandler {
-  type: string;
-  isCapture: boolean;
-  callback: Function;
-}
-
-export function render(
-  rootElement: ComponentElement,
-  domElement: HTMLElement | null
-) {
-  if (!domElement) return;
-  renderElements([rootElement], domElement);
-}
-
-function convertKey(mixedCaseKey: string): string {
-  const lowerCaseKey = mixedCaseKey.toLowerCase();
-  if (lowerCaseKey === "classname") {
-    return "class";
-  }
-  return lowerCaseKey;
-}
-
-function convertValue(jsxValue: unknown, domKey: string): string | null {
-  switch (typeof jsxValue) {
-    case "boolean":
-      return jsxValue ? domKey : null;
-    case "object":
-      if (domKey === "style" && jsxValue) {
-        const tempNode = document.createElement("div");
-        Object.entries(jsxValue).forEach(([cssKey, cssValue]) => {
-          tempNode.style[cssKey] = cssValue;
-        });
-        return tempNode.style.cssText;
-      }
-    // eslint-disable-next-line no-fallthrough -- fall-through intended
-    default:
-      return String(jsxValue);
-  }
-}
-
-function convertProp([mixedCaseKey, jsxValue]): ParsedProperty | null {
-  const key = convertKey(mixedCaseKey);
-  const value = convertValue(jsxValue, key);
-  if (value === null) return null;
-  return { key, value };
-}
-
-function convertEventHandler([onEventName, callback]: [
-  string,
-  unknown
-]): EventHandler | null {
-  if (typeof callback !== "function" || onEventName.length <= 2) {
-    return null;
-  }
-  const isCapture = onEventName.endsWith("Capture");
-  const type = onEventName.slice(2, isCapture ? -7 : undefined).toLowerCase();
-  return { type, isCapture, callback };
-}
-
-function isEventListener(key: string): boolean {
-  return key.startsWith("on");
-}
-
-function parseProps(props: Properties): {
-  eventHandlers: EventHandler[];
-  domProps: ParsedProperty[];
-} {
-  const allProps = Object.entries(props || {});
-  const eventHandlers = allProps
-    .filter(([key]) => isEventListener(key))
-    .map(convertEventHandler)
-    .filter((e): e is EventHandler => e !== null);
-  const domProps = allProps
-    .filter(([key]) => !isEventListener(key))
-    .map(convertProp)
-    .filter((prop): prop is ParsedProperty => prop !== null);
-
-  return { eventHandlers, domProps };
-}
-
-function renderElement(element: JSXFlatElement): Node | null {
-  if (
-    (typeof element === "object" && !element) ||
-    typeof element === "boolean"
-  ) {
-    return null;
-  }
-  if (typeof element === "string") {
-    return document.createTextNode(element);
-  }
-  if (typeof element.type === "string") {
-    const node = document.createElement(element.type);
-    const { eventHandlers, domProps } = parseProps(element.props);
-    eventHandlers.forEach(({ type, callback, isCapture }) => {
-      node.addEventListener(type, callback as EventListener, isCapture);
-    });
-    domProps.forEach(({ key, value }) => node.setAttribute(key, value));
-
-    const children = Array.isArray(element.children)
-      ? element.children.flat()
-      : element.children
-      ? [element.children]
-      : [];
-
-    renderElements(children, node);
-    return node;
-  }
-
-  return renderComponent(element as ComponentElement<Component>);
-}
-
-function renderComponent(element: ComponentElement<Component>): Node | null {
-  const props = { ...element.props, children: element.children };
-  const jsxResult = element.type(props);
-  return renderElement(jsxResult);
-}
-
-function renderElements(elements: JSXFlatElement[], parentNode: HTMLElement) {
-  // Create initial array, and insert only non-nulls as initial children
-  const renderedElements: (Node | null)[] = elements.map((element, index) =>
-    renderElement(element)
-  );
-  renderedElements
-    .filter((e): e is Node => e !== null)
-    .map((e) => parentNode.appendChild(e));
+  dom?: HTMLElement | Text | null;
+  parent?: Fiber;
+  sibling?: Fiber;
+  child?: Fiber;
+  effectTag?: "PLACEMENT";
 }
 
 export function createElement(
   type: ElementType,
-  props: Properties,
-  ...children: JSXElement[]
-): ComponentElement {
-  return { type, props, children };
+  props: Properties | null,
+  ...children: (JSXFlatElement | string | null | boolean | number)[]
+): Fiber {
+  const fiber: Fiber = {
+    type,
+    props: {
+      ...props,
+      children: children
+        .flat()
+        .filter((child) => child !== null && child !== false)
+        .map((child) =>
+          typeof child === "object" ? child : createTextElement(String(child))
+        ),
+    },
+  };
+  return fiber;
 }
 
-const Meact = { renderElement, createElement };
+function createTextElement(text: string): Fiber {
+  return {
+    type: "TEXT_ELEMENT",
+    props: {
+      nodeValue: text,
+      children: [],
+    },
+  };
+}
+
+function createDom(fiber: Fiber<string>): HTMLElement | Text {
+  const dom =
+    fiber.type === "TEXT_ELEMENT"
+      ? document.createTextNode("")
+      : document.createElement(fiber.type!);
+
+  updateDom(dom, { children: [] }, fiber.props);
+
+  return dom;
+}
+
+const isEvent = (key: string) =>
+  key.startsWith("on"); /* @todo Implement this */
+const isProperty = (key: string) => key !== "children" && !isEvent(key);
+const isNew = (prev: Properties, next: Properties) => (key: string) =>
+  prev?.[key] !== next?.[key];
+const isGone =
+  (_prev: Properties, next: Properties | undefined) => (key: string) =>
+    next && !(key in next);
+
+function updateDom(
+  dom: HTMLElement | Text,
+  prevProps: Properties,
+  nextProps: Properties | undefined
+) {
+  //Remove old or changed event listeners
+  // @todo Implement this
+  Object.keys(prevProps)
+    .filter(isEvent)
+    .filter(
+      (key) =>
+        !nextProps || !(key in nextProps) || isNew(prevProps, nextProps)(key)
+    )
+    .forEach((name) => {
+      const eventType = name.toLowerCase().substring(2);
+      dom.removeEventListener(
+        eventType,
+        prevProps[name] as EventListenerOrEventListenerObject
+      );
+    });
+
+  // Remove old properties
+  Object.keys(prevProps)
+    .filter(isProperty)
+    .filter(isGone(prevProps, nextProps))
+    .forEach((name) => {
+      dom[name] = "";
+    });
+
+  // Set new or changed properties
+  if (nextProps) {
+    Object.keys(nextProps)
+      .filter(isProperty)
+      .filter(isNew(prevProps, nextProps))
+      .forEach((name) => {
+        dom[name] = nextProps[name];
+      });
+
+    // Add event listeners
+    // @todo Implement this
+    Object.keys(nextProps)
+      .filter(isEvent)
+      .filter(isNew(prevProps, nextProps))
+      .forEach((name) => {
+        const eventType = name.toLowerCase().substring(2);
+        dom.addEventListener(
+          eventType,
+          nextProps[name] as EventListenerOrEventListenerObject
+        );
+      });
+  }
+}
+
+function commitRoot() {
+  deletions?.forEach(commitWork);
+  commitWork(wipRoot?.child!);
+  wipRoot = null;
+}
+
+function commitWork(fiber: Fiber): void {
+  if (!fiber) {
+    return;
+  }
+
+  let domParentFiber = fiber.parent;
+  while (domParentFiber && !domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent;
+  }
+  const domParent = domParentFiber?.dom as HTMLElement;
+
+  if (fiber.effectTag === "PLACEMENT" && fiber.dom != null) {
+    domParent.appendChild(fiber.dom);
+  }
+
+  commitWork(fiber.child!);
+  commitWork(fiber.sibling!);
+}
+
+function render(element: Fiber, container: HTMLElement) {
+  wipRoot = {
+    dom: container,
+    props: {
+      children: [element],
+    },
+  };
+  deletions = [];
+  nextUnitOfWork = wipRoot;
+}
+
+let nextUnitOfWork: Fiber | null = null;
+let wipRoot: Fiber | null = null;
+let deletions: Fiber[] | null = null;
+
+const workLoop: IdleRequestCallback = (deadline) => {
+  let shouldYield = false;
+  while (nextUnitOfWork && !shouldYield) {
+    nextUnitOfWork = performUnitOfWork(nextUnitOfWork) || null;
+    shouldYield = deadline.timeRemaining() < 1;
+  }
+
+  if (!nextUnitOfWork && wipRoot) {
+    commitRoot();
+  }
+
+  requestIdleCallback(workLoop);
+};
+
+requestIdleCallback(workLoop);
+
+function isFunctionComponent(f: Fiber): f is Fiber<Component> {
+  return f.type instanceof Function;
+}
+
+function performUnitOfWork(fiber: Fiber) {
+  if (isFunctionComponent(fiber)) {
+    updateFunctionComponent(fiber);
+  } else {
+    updateHostComponent(fiber as Fiber<string>);
+  }
+  if (fiber.child) {
+    return fiber.child;
+  }
+  let nextFiber: Fiber | undefined = fiber;
+  while (nextFiber) {
+    if (nextFiber.sibling) {
+      return nextFiber.sibling;
+    }
+    nextFiber = nextFiber.parent;
+  }
+}
+
+function updateFunctionComponent(fiber: Fiber<Component>) {
+  if (typeof fiber.type !== "function") {
+    throw new Error("fiber.type is not a function");
+  }
+  const children = [fiber.type(fiber.props)];
+  reconcileChildren(fiber, children);
+}
+
+function updateHostComponent(fiber: Fiber<string>) {
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber);
+  }
+  reconcileChildren(fiber, fiber.props.children);
+}
+
+function reconcileChildren(wipFiber: Fiber, elements: JSXFlatElement[]) {
+  let index = 0;
+  let prevSibling: Fiber | null = null;
+
+  while (index < elements.length) {
+    const element = elements[index];
+    let newFiber: Fiber | null = null;
+
+    if (element) {
+      newFiber = {
+        type: element.type,
+        props: element.props,
+        dom: null,
+        parent: wipFiber,
+        effectTag: "PLACEMENT",
+      };
+    }
+
+    if (index === 0) {
+      wipFiber.child = newFiber!;
+    } else if (element && prevSibling) {
+      prevSibling.sibling = newFiber!;
+    }
+
+    prevSibling = newFiber;
+    index++;
+  }
+}
+
+const Meact = { render, createElement };
 
 export default Meact;
