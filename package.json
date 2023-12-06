@@ -17,5 +17,8 @@
     "meact-03-solution",
     "meact-04",
     "meact-04-solution"
-  ]
+  ],
+  "devDependencies": {
+    "@babel/plugin-proposal-class-properties": "^7.18.6"
+  }
 }
